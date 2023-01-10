@@ -6,6 +6,7 @@ import prisma from "../lib/prisma";
 import { Role } from "@prisma/client";
 import { S3 } from "aws-sdk";
 import { useRouter } from "next/router";
+import { useEffect } from "react";
 
 const CreateLinkMutation = gql`
   mutation (
@@ -34,11 +35,22 @@ const CreateLinkMutation = gql`
 
 const Admin = () => {
   const router = useRouter();
-  const { register, handleSubmit, reset } = useForm();
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm();
 
   const [createLink, { loading, error }] = useMutation(CreateLinkMutation, {
     onCompleted: () => reset(),
   });
+
+  useEffect(() => {
+    Object.keys(errors).forEach((k) =>
+      toast.error(errors[k] as unknown as string)
+    );
+  }, [errors]);
 
   const uploadPhoto = async (e) => {
     const file = e.target.files[0];
@@ -89,7 +101,7 @@ const Admin = () => {
       toast.error(e);
       console.error(e);
     } finally {
-    //   router.push("/");
+      //   router.push("/");
     }
   };
 
