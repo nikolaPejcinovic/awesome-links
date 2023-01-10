@@ -104,7 +104,10 @@ const Admin = () => {
   return (
     <div className="container mx-auto max-w-md py-12">
       {Object.keys(errors).map((k) => (
-        <p>{errors[k].message}</p>
+        <>
+          ERROR {k}
+          <p>{errors[k].message}</p>
+        </>
       ))}
       <Toaster />
       <h1 className="text-3xl font-medium my-5">Create a new link</h1>
