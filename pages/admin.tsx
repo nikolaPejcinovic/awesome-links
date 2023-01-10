@@ -46,11 +46,7 @@ const Admin = () => {
     onCompleted: () => reset(),
   });
 
-  useEffect(() => {
-    Object.keys(errors).forEach((k) =>
-      toast.error(errors[k] as unknown as string)
-    );
-  }, [errors]);
+  console.log(errors);
 
   const uploadPhoto = async (e) => {
     const file = e.target.files[0];
@@ -107,8 +103,8 @@ const Admin = () => {
 
   return (
     <div className="container mx-auto max-w-md py-12">
-      {Object.keys(errors).forEach((k) => (
-        <p>{errors[k]}</p>
+      {Object.keys(errors).map((k) => (
+        <p>{errors[k].message}</p>
       ))}
       <Toaster />
       <h1 className="text-3xl font-medium my-5">Create a new link</h1>
