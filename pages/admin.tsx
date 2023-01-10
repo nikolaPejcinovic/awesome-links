@@ -107,6 +107,9 @@ const Admin = () => {
 
   return (
     <div className="container mx-auto max-w-md py-12">
+      {Object.keys(errors).forEach((k) => (
+        <p>{errors[k]}</p>
+      ))}
       <Toaster />
       <h1 className="text-3xl font-medium my-5">Create a new link</h1>
       <form
@@ -167,7 +170,7 @@ const Admin = () => {
         </label>
 
         <button
-        //   disabled={loading}
+          //   disabled={loading}
           type="submit"
           className="my-4 capitalize bg-blue-500 text-white font-medium py-2 px-4 rounded-md hover:bg-blue-600"
         >
