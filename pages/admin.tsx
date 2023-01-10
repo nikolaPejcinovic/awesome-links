@@ -1,76 +1,91 @@
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { gql, useMutation } from '@apollo/client';
-import toast, { Toaster } from 'react-hot-toast';
+import { useForm } from "react-hook-form";
+import { gql, useMutation } from "@apollo/client";
+import toast, { Toaster } from "react-hot-toast";
+import { getSession } from "@auth0/nextjs-auth0";
+import prisma from "../lib/prisma";
+import { Role } from "@prisma/client";
+import { S3 } from "aws-sdk";
+import { useRouter } from "next/router";
 
 const CreateLinkMutation = gql`
   mutation (
     $title: String!
     $url: String!
+    $description: String!
     $imageUrl: String!
     $category: String!
-    $description: String!
   ) {
     createLink(
       title: $title
       url: $url
+      description: $description
       imageUrl: $imageUrl
       category: $category
-      description: $description
     ) {
+      id
       title
       url
+      description
       imageUrl
       category
-      description
     }
   }
 `;
 
 const Admin = () => {
-  const [createLink, { data, loading, error }] =
-    useMutation(CreateLinkMutation);
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm();
+  const router = useRouter();
+  const { register, handleSubmit, reset } = useForm();
+
+  const [createLink, { loading, error }] = useMutation(CreateLinkMutation, {
+    onCompleted: () => reset(),
+  });
+
   const uploadPhoto = async (e) => {
     const file = e.target.files[0];
     const filename = encodeURIComponent(file.name);
     const res = await fetch(`/api/upload-image?file=${filename}`);
-    const data = await res.json();
+    const data: S3.PresignedPost = await res.json();
     const formData = new FormData();
 
-    Object.entries({ ...data.fields, file }).forEach(([key, value]) => {
-      formData.append(key, value);
-    });
-
-    toast.promise(
-      fetch(data.url, {
-        method: 'POST',
-        body: formData,
-      }),
-      {
-        loading: 'Uploading...',
-        success: 'Image successfully uploaded!🎉',
-        error: `Upload failed 😥 Please try again ${error}`,
-      }
+    Object.entries({ ...data.fields, file }).forEach(([key, value]) =>
+      formData.append(key, value as string | Blob)
     );
+    console.log(data.url);
+    try {
+      toast.promise(
+        fetch(data.url, {
+          method: "POST",
+          body: formData,
+        }),
+        {
+          loading: "Uploading...",
+          success: "Image successfully uploaded!",
+          error: "Upload failed",
+        }
+      );
+    } catch (e) {
+      console.log(e);
+    }
   };
 
-  const onSubmit = async (data) => {
-    const { title, url, category, description, image } = data;
-    const imageUrl = `https://my-awesome-links-bucket.s3.amazonaws.com/${image[0].name}`;
-    const variables = { title, url, category, description, imageUrl };
+  const onSubmit = async ({ title, url, category, description, image }) => {
+    const imageUrl = `https://${process.env.NEXT_PUBLIC_AWS_S3_BUCKET_NAME}.s3.amazonaws.com/${image[0].name}`;
+
     try {
-      toast.promise(createLink({ variables }), {
-        loading: 'Creating new link..',
-        success: 'Link successfully created!🎉',
-        error: `Something went wrong 😥 Please try again -  ${error}`,
-      });
-    } catch (error) {
-      console.error(error);
+      toast.promise(
+        createLink({
+          variables: { title, url, category, description, imageUrl },
+        }),
+        {
+          loading: "Creating new link...",
+          success: "Link successfully created!🎉",
+          error: `Something went wrong 😥 Please try again -  ${error}`,
+        }
+      );
+    } catch (e) {
+      console.error(e);
+    } finally {
+      router.push("/");
     }
   };
 
@@ -88,7 +103,7 @@ const Admin = () => {
             placeholder="Title"
             name="title"
             type="text"
-            {...register('title', { required: true })}
+            {...register("title", { required: true })}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
           />
         </label>
@@ -96,7 +111,7 @@ const Admin = () => {
           <span className="text-gray-700">Description</span>
           <input
             placeholder="Description"
-            {...register('description', { required: true })}
+            {...register("description", { required: true })}
             name="description"
             type="text"
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
@@ -106,7 +121,7 @@ const Admin = () => {
           <span className="text-gray-700">Url</span>
           <input
             placeholder="https://example.com"
-            {...register('url', { required: true })}
+            {...register("url", { required: true })}
             name="url"
             type="text"
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
@@ -116,7 +131,7 @@ const Admin = () => {
           <span className="text-gray-700">Category</span>
           <input
             placeholder="Name"
-            {...register('category', { required: true })}
+            {...register("category", { required: true })}
             name="category"
             type="text"
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
@@ -127,7 +142,7 @@ const Admin = () => {
             Upload a .png or .jpg image (max 1MB).
           </span>
           <input
-            {...register('image', { required: true })}
+            {...register("image", { required: true })}
             onChange={uploadPhoto}
             type="file"
             accept="image/png, image/jpeg"
@@ -162,3 +177,31 @@ const Admin = () => {
 };
 
 export default Admin;
+
+export const getServerSideProps = async ({ req, res }) => {
+  const session = await getSession(req, res);
+
+  if (!session) {
+    return {
+      redirect: { permanent: false, destination: "/api/auth/login" },
+      props: {},
+    };
+  }
+
+  const user = await prisma.user.findUnique({
+    // TODO: check what select does
+    select: {
+      email: true,
+      role: true,
+    },
+    where: {
+      email: session.user.email,
+    },
+  });
+
+  if (user.role !== Role.ADMIN) {
+    return { redirect: { permanent: false, destination: "/404" }, props: {} };
+  }
+
+  return { props: {} };
+};

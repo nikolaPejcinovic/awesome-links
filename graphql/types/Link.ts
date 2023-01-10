@@ -1,145 +1,144 @@
-import { nonNull, objectType, stringArg, extendType } from 'nexus';
-import { connectionFromArraySlice, cursorToOffset } from 'graphql-relay';
+import { Role } from "@prisma/client";
+import { extendType, intArg, nonNull, objectType, stringArg } from "nexus";
+import { Context } from "../context";
+import { User } from "./User";
 
 export const Link = objectType({
-  name: 'Link',
+  name: "Link",
   definition(t) {
-    t.string('id');
-    t.int('index');
-    t.int('userId');
-    t.string('title');
-    t.string('url');
-    t.string('description');
-    t.string('imageUrl');
-    t.string('category');
+    t.nonNull.string("id");
+    t.nonNull.string("title");
+    t.nonNull.string("url");
+    t.nonNull.string("description");
+    t.nonNull.string("imageUrl");
+    t.nonNull.string("category");
+    t.list.field("users", {
+      type: User,
+      resolve: async (parent, _args, ctx: Context) =>
+        await ctx.prisma.link.findUnique({ where: { id: parent.id } }).users(),
+    });
   },
 });
 
-// get ALl Links
-export const LinksQuery = extendType({
-  type: 'Query',
+export const Edge = objectType({
+  name: "Edge",
   definition(t) {
-    t.connectionField('links', {
+    t.string("cursor");
+    t.field("node", {
       type: Link,
-      resolve: async (_, { after, first }, ctx) => {
-        const offset = after ? cursorToOffset(after) + 1 : 0;
-        if (isNaN(offset)) throw new Error('cursor is invalid');
-
-        const [totalCount, items] = await Promise.all([
-          ctx.prisma.link.count(),
-          ctx.prisma.link.findMany({
-            take: first,
-            skip: offset,
-          }),
-        ]);
-
-        return connectionFromArraySlice(
-          items,
-          { first, after },
-          { sliceStart: offset, arrayLength: totalCount }
-        );
-      },
     });
   },
 });
-// get Unique Link
-export const LinkByIDQuery = extendType({
-  type: 'Query',
+
+export const PageInfo = objectType({
+  name: "PageInfo",
   definition(t) {
-    t.nonNull.field('link', {
-      type: 'Link',
-      args: { id: nonNull(stringArg()) },
-      resolve(_parent, args, ctx) {
-        const link = ctx.prisma.link.findUnique({
-          where: {
-            id: args.id,
+    t.string("endCursor");
+    t.boolean("hasNextPage");
+  },
+});
+
+export const Response = objectType({
+  name: "Response",
+  definition(t) {
+    t.field("pageInfo", { type: PageInfo });
+    t.list.field("edges", { type: Edge });
+  },
+});
+
+export const LinksQuery = extendType({
+  type: "Query",
+  definition(t) {
+    t.field("links", {
+      type: Response,
+      args: {
+        first: intArg(),
+        after: stringArg(),
+      },
+      resolve: async (_, args, ctx: Context) => {
+        let queryResults = null;
+
+        if (args.after) {
+          queryResults = await ctx.prisma.link.findMany({
+            take: args.first,
+            skip: 1,
+            cursor: {
+              id: args.after,
+            },
+          });
+        } else {
+          queryResults = await ctx.prisma.link.findMany({
+            take: args.first,
+          });
+        }
+
+        if (queryResults.length > 0) {
+          const lastLinkInResults = queryResults[queryResults.length - 1];
+          const myCursor = lastLinkInResults.id;
+
+          const secondQueryResults = await ctx.prisma.link.findMany({
+            take: args.first,
+            cursor: {
+              id: myCursor,
+            },
+            // orderBy: {
+            //   index: 'asc'
+            // }
+          });
+
+          return {
+            pageInfo: {
+              endCursor: myCursor,
+              hasNextPage: secondQueryResults.length >= args.first,
+            },
+            edges: queryResults.map((link) => ({
+              cursor: link.id,
+              node: link,
+            })),
+          };
+        }
+
+        return {
+          pageInfo: {
+            endCursor: null,
+            hasNextPage: false,
           },
-        });
-        return link;
+          edges: [],
+        };
       },
     });
   },
 });
 
-// create link
 export const CreateLinkMutation = extendType({
-  type: 'Mutation',
+  type: "Mutation",
   definition(t) {
-    t.nonNull.field('createLink', {
+    t.nonNull.field("createLink", {
       type: Link,
       args: {
         title: nonNull(stringArg()),
         url: nonNull(stringArg()),
+        description: nonNull(stringArg()),
         imageUrl: nonNull(stringArg()),
         category: nonNull(stringArg()),
-        description: nonNull(stringArg()),
       },
-      async resolve(_parent, args, ctx) {
+      resolve: async (_, args, ctx: Context) => {
+        if (!ctx.user) {
+          throw new Error(`You need to be logged in to perform an action`);
+        }
+
         const user = await ctx.prisma.user.findUnique({
           where: {
             email: ctx.user.email,
           },
         });
-         if (!user || user.role !== 'ADMIN') {
-          throw new Error(`You do not have permission to perform action`);
+
+        if (user.role !== Role.ADMIN) {
+          throw new Error("Must be an admin");
         }
-        const newLink = {
-          title: args.title,
-          url: args.url,
-          imageUrl: args.imageUrl,
-          category: args.category,
-          description: args.description,
-        };
 
         return await ctx.prisma.link.create({
-          data: newLink,
-        });
-      },
-    });
-  },
-});
-
-// update Link
-export const UpdateLinkMutation = extendType({
-  type: 'Mutation',
-  definition(t) {
-    t.nonNull.field('updateLink', {
-      type: 'Link',
-      args: {
-        id: stringArg(),
-        title: stringArg(),
-        url: stringArg(),
-        imageUrl: stringArg(),
-        category: stringArg(),
-        description: stringArg(),
-      },
-      resolve(_parent, args, ctx) {
-        return ctx.prisma.link.update({
-          where: { id: args.id },
-          data: {
-            title: args.title,
-            url: args.url,
-            imageUrl: args.imageUrl,
-            category: args.category,
-            description: args.description,
-          },
-        });
-      },
-    });
-  },
-});
-// // delete Link
-export const DeleteLinkMutation = extendType({
-  type: 'Mutation',
-  definition(t) {
-    t.nonNull.field('deleteLink', {
-      type: 'Link',
-      args: {
-        id: nonNull(stringArg()),
-      },
-      resolve(_parent, args, ctx) {
-        return ctx.prisma.link.delete({
-          where: { id: args.id },
+          data: { ...args },
         });
       },
     });
