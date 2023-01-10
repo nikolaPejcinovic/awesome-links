@@ -6,7 +6,6 @@ import prisma from "../lib/prisma";
 import { Role } from "@prisma/client";
 import { S3 } from "aws-sdk";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
 
 const CreateLinkMutation = gql`
   mutation (
@@ -35,18 +34,11 @@ const CreateLinkMutation = gql`
 
 const Admin = () => {
   const router = useRouter();
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm();
+  const { register, handleSubmit, reset } = useForm();
 
   const [createLink, { loading, error }] = useMutation(CreateLinkMutation, {
     onCompleted: () => reset(),
   });
-
-  console.log(errors);
 
   const uploadPhoto = async (e) => {
     const file = e.target.files[0];
@@ -58,7 +50,7 @@ const Admin = () => {
     Object.entries({ ...data.fields, file }).forEach(([key, value]) =>
       formData.append(key, value as string | Blob)
     );
-    console.log(data.url);
+
     try {
       toast.promise(
         fetch(data.url, {
@@ -77,11 +69,8 @@ const Admin = () => {
   };
 
   const onSubmit = async ({ title, url, category, description, image }) => {
-    // const imageUrl = `https://${process.env.NEXT_PUBLIC_AWS_S3_BUCKET_NAME}.s3.amazonaws.com/${image[0].name}`;
-    const imageUrl = "https://blaa.com";
-    toast.error(
-      `https://${process.env.NEXT_PUBLIC_AWS_S3_BUCKET_NAME}.s3.amazonaws.com/${image[0].name}`
-    );
+    const imageUrl = `https://${process.env.NEXT_PUBLIC_AWS_S3_BUCKET_NAME}.s3.amazonaws.com/${image[0].name}`;
+
     try {
       toast.promise(
         createLink({
@@ -94,21 +83,14 @@ const Admin = () => {
         }
       );
     } catch (e) {
-      toast.error(e);
       console.error(e);
     } finally {
-      //   router.push("/");
+      router.push("/");
     }
   };
 
   return (
     <div className="container mx-auto max-w-md py-12">
-      {Object.keys(errors).map((k) => (
-        <>
-          ERROR {k}
-          <p>{errors[k].message}</p>
-        </>
-      ))}
       <Toaster />
       <h1 className="text-3xl font-medium my-5">Create a new link</h1>
       <form
@@ -163,13 +145,13 @@ const Admin = () => {
             {...register("image", { required: true })}
             onChange={uploadPhoto}
             type="file"
-            accept="image/png; image/jpeg"
+            accept="image/png, image/jpeg"
             name="image"
           />
         </label>
 
         <button
-          //   disabled={loading}
+          disabled={loading}
           type="submit"
           className="my-4 capitalize bg-blue-500 text-white font-medium py-2 px-4 rounded-md hover:bg-blue-600"
         >
