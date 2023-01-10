@@ -71,6 +71,7 @@ const Admin = () => {
   const onSubmit = async ({ title, url, category, description, image }) => {
     const imageUrl = `https://${process.env.NEXT_PUBLIC_AWS_S3_BUCKET_NAME}.s3.amazonaws.com/${image[0].name}`;
 
+    toast.error("CLICKED");
     try {
       toast.promise(
         createLink({
@@ -83,6 +84,7 @@ const Admin = () => {
         }
       );
     } catch (e) {
+      toast.error(e);
       console.error(e);
     } finally {
       router.push("/");
