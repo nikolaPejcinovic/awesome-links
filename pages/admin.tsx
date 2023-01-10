@@ -160,7 +160,7 @@ const Admin = () => {
             Upload a .png or .jpg image (max 1MB).
           </span>
           <input
-            {...register("image")}
+            {...register("image", { required: true })}
             onChange={uploadPhoto}
             type="file"
             accept="image/png, image/jpeg"
