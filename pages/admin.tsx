@@ -167,7 +167,7 @@ const Admin = () => {
         </label>
 
         <button
-          disabled={loading}
+        //   disabled={loading}
           type="submit"
           className="my-4 capitalize bg-blue-500 text-white font-medium py-2 px-4 rounded-md hover:bg-blue-600"
         >
