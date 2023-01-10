@@ -145,7 +145,7 @@ const Admin = () => {
             {...register("image", { required: true })}
             onChange={uploadPhoto}
             type="file"
-            accept="image/png, image/jpeg"
+            accept="image/*"
             name="image"
           />
         </label>
