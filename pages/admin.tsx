@@ -89,7 +89,7 @@ const Admin = () => {
       toast.error(e);
       console.error(e);
     } finally {
-      router.push("/");
+    //   router.push("/");
     }
   };
 
