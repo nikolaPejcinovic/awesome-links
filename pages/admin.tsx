@@ -4,8 +4,12 @@ import toast, { Toaster } from "react-hot-toast";
 import { getSession } from "@auth0/nextjs-auth0";
 import prisma from "../lib/prisma";
 import { Role } from "@prisma/client";
-import { S3 } from "aws-sdk";
 import { useRouter } from "next/router";
+import {
+  getImageUrl,
+  handleUploadImage,
+  getImageFormData,
+} from "../utils/image";
 
 const CreateLinkMutation = gql`
   mutation (
@@ -41,21 +45,15 @@ const Admin = () => {
   });
 
   const uploadPhoto = async (e) => {
-    const file = e.target.files[0];
-    const filename = encodeURIComponent(file.name);
-    const res = await fetch(`/api/upload-image?file=${filename}`);
-    const data: S3.PresignedPost = await res.json();
-    const formData = new FormData();
-
-    Object.entries({ ...data.fields, file }).forEach(([key, value]) =>
-      formData.append(key, value as string | Blob)
-    );
+    const imageFile = e.target.files[0];
+    const imageData = await handleUploadImage({ imageFile });
+    const imageFormData = getImageFormData({ imageData, imageFile });
 
     try {
       toast.promise(
-        fetch(data.url, {
+        fetch(imageData.url, {
           method: "POST",
-          body: formData,
+          body: imageFormData,
         }),
         {
           loading: "Uploading...",
@@ -69,13 +67,16 @@ const Admin = () => {
   };
 
   const onSubmit = async ({ title, url, category, description, image }) => {
-    console.log(image);
-    const imageUrl = `https://${process.env.NEXT_PUBLIC_AWS_S3_BUCKET_NAME}.s3.amazonaws.com/${image[0].name}`;
-
     try {
       toast.promise(
         createLink({
-          variables: { title, url, category, description, imageUrl },
+          variables: {
+            title,
+            url,
+            category,
+            description,
+            imageUrl: getImageUrl(image),
+          },
         }),
         {
           loading: "Creating new link...",
